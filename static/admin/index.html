@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>相诗小厨房管理后台 🔧</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+    .fade-enter-from, .fade-leave-to { opacity: 0; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div id="app">
+  <!-- 登录页 -->
+  <div v-if="!token" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-xl p-8 w-full max-w-sm">
+      <div class="text-center mb-6">
+        <div class="text-6xl mb-2">🔐</div>
+        <h1 class="text-2xl font-bold text-gray-800">管理后台</h1>
+        <p class="text-sm text-gray-500 mt-1">输入管理密码进入</p>
+      </div>
+      <input v-model="loginPwd" type="password" placeholder="管理密码"
+             @keyup.enter="login"
+             class="w-full px-4 py-3 border border-gray-200 rounded-xl text-center outline-none focus:border-pink-400 mb-3">
+      <button @click="login" class="w-full bg-pink-500 text-white py-3 rounded-xl font-bold active:scale-95">
+        登录
+      </button>
+      <p v-if="loginError" class="text-red-500 text-sm text-center mt-2">{{ loginError }}</p>
+      <p class="text-xs text-gray-400 text-center mt-4">
+        默认密码: <code class="bg-gray-100 px-1 rounded">love123</code>
+      </p>
+    </div>
+  </div>
+
+  <!-- 后台主体 -->
+  <div v-else>
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+      <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <h1 class="font-bold text-gray-800">🔧 小厨房后台</h1>
+        <div class="flex items-center gap-2 text-sm flex-wrap">
+          <a href="/" class="text-pink-500">← 点餐页</a>
+          <button @click="switchTab('orders')" :class="tab === 'orders' ? 'bg-pink-500 text-white' : 'text-gray-600'" class="px-3 py-1.5 rounded-full">订单</button>
+          <button @click="switchTab('dishes')" :class="tab === 'dishes' ? 'bg-pink-500 text-white' : 'text-gray-600'" class="px-3 py-1.5 rounded-full">菜品</button>
+          <button @click="switchTab('stats')" :class="tab === 'stats' ? 'bg-pink-500 text-white' : 'text-gray-600'" class="px-3 py-1.5 rounded-full">统计</button>
+          <button @click="switchTab('settings')" :class="tab === 'settings' ? 'bg-pink-500 text-white' : 'text-gray-600'" class="px-3 py-1.5 rounded-full">设置</button>
+          <button @click="logout" class="text-gray-400">退出</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-6">
+      <!-- 订单管理 -->
+      <div v-if="tab === 'orders'">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold">订单列表 ({{ orders.length }})</h2>
+          <button @click="loadOrders" class="text-sm text-pink-500">🔄 刷新</button>
+        </div>
+        <div v-if="orders.length === 0" class="text-center text-gray-400 py-16">
+          <div class="text-5xl mb-3">📭</div>
+          还没有订单呢~
+        </div>
+        <div v-for="o in orders" :key="o.id" class="bg-white rounded-2xl p-4 mb-3 shadow-sm">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-bold text-gray-800">{{ o.customerName }}</span>
+                <span class="text-sm text-gray-400">@ {{ o.tableNo }}</span>
+                <span :class="statusClass(o.status)" class="text-xs px-2 py-0.5 rounded-full">{{ statusText(o.status) }}</span>
+              </div>
+              <div class="text-xs text-gray-400 mb-2">{{ formatTime(o.createdAt) }} · 单号 {{ o.id }}</div>
+              <div class="text-sm">
+                <span v-for="it in o.items" :key="it.id" class="inline-flex items-center gap-1 bg-gray-50 rounded px-2 py-0.5 mr-2 mb-1">
+                  <img v-if="isPhoto(it.image)" :src="it.image" class="w-4 h-4 rounded object-cover">
+                  <span v-else>{{ it.image }}</span>
+                  {{ it.name }} × {{ it.qty }}
+                </span>
+              </div>
+              <div v-if="o.remark" class="mt-2 text-sm text-orange-600 bg-orange-50 p-2 rounded">📝 {{ o.remark }}</div>
+              <div class="mt-2 font-bold text-pink-500">¥{{ o.total }}</div>
+            </div>
+            <div class="flex flex-col gap-1 ml-2">
+              <button v-if="o.status === 'pending'" @click="updateStatus(o.id, 'cooking')"
+                      class="text-xs bg-orange-500 text-white px-2 py-1 rounded">开始做</button>
+              <button v-if="o.status === 'cooking'" @click="updateStatus(o.id, 'done')"
+                      class="text-xs bg-green-500 text-white px-2 py-1 rounded">做好啦</button>
+              <button v-if="o.status !== 'done' && o.status !== 'cancelled'" @click="updateStatus(o.id, 'cancelled')"
+                      class="text-xs bg-gray-300 px-2 py-1 rounded">取消</button>
+              <button @click="deleteOrder(o.id)" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 菜品管理 -->
+      <div v-if="tab === 'dishes'">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold">菜品管理 ({{ dishes.length }})</h2>
+          <button @click="openEditor()" class="bg-pink-500 text-white px-3 py-1.5 rounded-full text-sm">+ 新增菜品</button>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div v-for="d in dishes" :key="d.id" class="bg-white rounded-2xl p-3 shadow-sm">
+            <div class="text-center py-2">
+              <img v-if="isPhoto(d.image)" :src="d.image" class="w-20 h-20 rounded-xl object-cover mx-auto">
+              <div v-else class="text-4xl">{{ d.image }}</div>
+            </div>
+            <h3 class="font-bold text-gray-800 truncate">{{ d.name }}</h3>
+            <p class="text-xs text-gray-500 truncate">{{ d.category }} · ¥{{ d.price }}</p>
+            <div class="flex items-center gap-1 mt-2">
+              <span v-if="d.recommend" class="text-xs bg-pink-100 text-pink-600 px-1.5 rounded">推荐</span>
+              <span :class="d.available ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'" class="text-xs px-1.5 rounded">
+                {{ d.available ? '上架' : '下架' }}
+              </span>
+            </div>
+            <div class="flex gap-1 mt-2">
+              <button @click="openEditor(d)" class="flex-1 text-xs bg-blue-100 text-blue-600 py-1 rounded">编辑</button>
+              <button @click="toggleAvailable(d)" class="flex-1 text-xs bg-yellow-100 text-yellow-700 py-1 rounded">{{ d.available ? '下架' : '上架' }}</button>
+              <button @click="del(d)" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">删</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 统计 -->
+      <div v-if="tab === 'stats'">
+        <h2 class="text-lg font-bold mb-4">📊 经营统计</h2>
+        <!-- 数据卡片 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div class="bg-white rounded-2xl p-4 shadow-sm text-center">
+            <div class="text-2xl mb-1">📋</div>
+            <div class="text-2xl font-bold text-gray-800">{{ stats.totalOrders }}</div>
+            <div class="text-xs text-gray-500">总订单</div>
+          </div>
+          <div class="bg-white rounded-2xl p-4 shadow-sm text-center">
+            <div class="text-2xl mb-1">💰</div>
+            <div class="text-2xl font-bold text-pink-500">¥{{ stats.totalRevenue }}</div>
+            <div class="text-xs text-gray-500">总营收</div>
+          </div>
+          <div class="bg-white rounded-2xl p-4 shadow-sm text-center">
+            <div class="text-2xl mb-1">📅</div>
+            <div class="text-2xl font-bold text-gray-800">{{ stats.todayOrders }}</div>
+            <div class="text-xs text-gray-500">今日订单</div>
+          </div>
+          <div class="bg-white rounded-2xl p-4 shadow-sm text-center">
+            <div class="text-2xl mb-1">💎</div>
+            <div class="text-2xl font-bold text-pink-500">¥{{ stats.todayRevenue }}</div>
+            <div class="text-xs text-gray-500">今日营收</div>
+          </div>
+        </div>
+
+        <!-- 订单状态 -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm mb-6">
+          <h3 class="font-bold text-gray-800 mb-3">订单状态分布</h3>
+          <div class="flex gap-2 flex-wrap">
+            <span class="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm">已下单 {{ stats.statusCount.pending || 0 }}</span>
+            <span class="bg-orange-100 text-orange-600 px-3 py-1 rounded-full text-sm">制作中 {{ stats.statusCount.cooking || 0 }}</span>
+            <span class="bg-green-100 text-green-600 px-3 py-1 rounded-full text-sm">已完成 {{ stats.statusCount.done || 0 }}</span>
+            <span class="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-sm">已取消 {{ stats.statusCount.cancelled || 0 }}</span>
+          </div>
+        </div>
+
+        <!-- 热门菜品 -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 class="font-bold text-gray-800 mb-3">🔥 热门菜品 Top 10</h3>
+          <div v-if="stats.topDishes && stats.topDishes.length">
+            <div v-for="d in stats.topDishes" :key="d.id" class="flex items-center gap-2 mb-2">
+              <span class="w-24 truncate text-sm text-gray-600">{{ d.name }}</span>
+              <div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
+                <div class="bg-pink-400 h-6 rounded-full flex items-center justify-end px-2" :style="{ width: Math.max(d.qty / maxQty * 100, 10) + '%' }">
+                  <span class="text-xs text-white font-bold">×{{ d.qty }}</span>
+                </div>
+              </div>
+              <span class="text-sm text-gray-500 w-16 text-right">¥{{ d.revenue }}</span>
+            </div>
+          </div>
+          <div v-else class="text-center text-gray-400 py-8">
+            还没有销售数据~
+          </div>
+        </div>
+      </div>
+
+      <!-- 设置 -->
+      <div v-if="tab === 'settings'" class="max-w-md">
+        <h2 class="text-lg font-bold mb-4">店铺设置</h2>
+        <div class="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+          <div>
+            <label class="text-sm text-gray-600">店名</label>
+            <input v-model="settingsForm.shopName" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400">
+          </div>
+          <div>
+            <label class="text-sm text-gray-600">副标题</label>
+            <input v-model="settingsForm.shopSubtitle" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400">
+          </div>
+          <div>
+            <label class="text-sm text-gray-600">Logo emoji</label>
+            <input v-model="settingsForm.banner" maxlength="2" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400">
+          </div>
+          <div>
+            <label class="text-sm text-gray-600">顶部公告</label>
+            <textarea v-model="settingsForm.notice" rows="2" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400 resize-none"></textarea>
+          </div>
+          <div>
+            <label class="text-sm text-gray-600">管理密码</label>
+            <input v-model="settingsForm.adminPassword" type="text" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400">
+          </div>
+          <div>
+            <label class="text-sm text-gray-600">通知 Webhook (可选)</label>
+            <input v-model="settingsForm.notifyWebhook" placeholder="Server酱 sct... 或企业微信机器人 URL" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400 text-sm">
+            <p class="text-xs text-gray-400 mt-1">填入后,有新订单时自动推送到微信。留空则不通知。</p>
+          </div>
+          <div class="flex gap-2">
+            <button @click="saveSettings" class="flex-1 bg-pink-500 text-white py-2 rounded-lg font-bold active:scale-95">保存设置</button>
+            <button @click="testNotify" class="px-4 bg-blue-50 text-blue-600 py-2 rounded-lg text-sm">测试通知</button>
+          </div>
+          <p v-if="settingsMsg" class="text-sm text-green-600 text-center">{{ settingsMsg }}</p>
+          <p v-if="notifyMsg" class="text-sm text-blue-600 text-center">{{ notifyMsg }}</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- 菜品编辑弹窗 -->
+    <transition name="fade">
+      <div v-if="editor" class="fixed inset-0 bg-black/50 z-30 flex items-center justify-center p-4" @click.self="editor = null">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md">
+          <h3 class="text-lg font-bold mb-4">{{ editor.id ? '编辑菜品' : '新增菜品' }}</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="text-sm text-gray-600">菜名</label>
+              <input v-model="editor.name" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-sm text-gray-600">分类</label>
+                <input v-model="editor.category" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400">
+              </div>
+              <div>
+                <label class="text-sm text-gray-600">价格</label>
+                <input v-model="editor.price" type="number" step="0.5" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400">
+              </div>
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">描述</label>
+              <input v-model="editor.desc" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">菜品图片</label>
+              <div class="mt-1 flex items-center gap-3">
+                <div class="w-16 h-16 rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden border border-gray-100">
+                  <img v-if="isPhoto(editor.image)" :src="editor.image" class="w-full h-full object-cover">
+                  <span v-else class="text-3xl">{{ editor.image }}</span>
+                </div>
+                <div class="flex-1 space-y-2">
+                  <input v-model="editor.image" placeholder="输入 emoji 或图片地址" class="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-pink-400 text-2xl">
+                  <label class="block">
+                    <input type="file" accept="image/*" @change="uploadImage($event)" class="hidden">
+                    <span class="block text-center text-sm bg-blue-50 text-blue-600 py-1.5 rounded-lg cursor-pointer">📷 上传图片</span>
+                  </label>
+                </div>
+              </div>
+              <p class="text-xs text-gray-400 mt-1">可输入 emoji,或上传真实图片</p>
+            </div>
+            <div class="flex gap-4">
+              <label class="flex items-center gap-2">
+                <input v-model="editor.available" type="checkbox" class="w-4 h-4 accent-pink-500">
+                <span class="text-sm">上架</span>
+              </label>
+              <label class="flex items-center gap-2">
+                <input v-model="editor.recommend" type="checkbox" class="w-4 h-4 accent-pink-500">
+                <span class="text-sm">推荐</span>
+              </label>
+            </div>
+            <div class="flex gap-2 pt-2">
+              <button @click="editor = null" class="flex-1 py-2 border border-gray-200 rounded-lg">取消</button>
+              <button @click="saveDish" class="flex-1 py-2 bg-pink-500 text-white rounded-lg font-bold">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </div>
+</div>
+
+<script>
+const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+createApp({
+  setup() {
+    const token = ref(localStorage.getItem('adminToken') || '');
+    const loginPwd = ref('');
+    const loginError = ref('');
+    const tab = ref('orders');
+    const orders = ref([]);
+    const dishes = ref([]);
+    const editor = ref(null);
+    const stats = ref({ totalOrders: 0, totalRevenue: 0, todayOrders: 0, todayRevenue: 0, statusCount: {}, topDishes: [] });
+    const settingsForm = reactive({ shopName: '', shopSubtitle: '', banner: '', notice: '', adminPassword: '', notifyWebhook: '' });
+    const settingsMsg = ref('');
+    const notifyMsg = ref('');
+
+    const maxQty = computed(() => {
+      if (!stats.value.topDishes || !stats.value.topDishes.length) return 1;
+      return Math.max(...stats.value.topDishes.map(d => d.qty), 1);
+    });
+
+    async function login() {
+      const r = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: loginPwd.value })
+      }).then(r => r.json());
+      if (r.code === 0) {
+        token.value = r.data.token;
+        localStorage.setItem('adminToken', token.value);
+        loginError.value = '';
+        loadData();
+      } else {
+        loginError.value = r.msg;
+      }
+    }
+
+    function logout() {
+      token.value = '';
+      localStorage.removeItem('adminToken');
+    }
+
+    async function loadData() {
+      await Promise.all([loadOrders(), loadDishes(), loadSettings()]);
+    }
+
+    function switchTab(t) {
+      tab.value = t;
+      if (t === 'stats') loadStats();
+    }
+
+    async function loadOrders() {
+      const r = await fetch('/api/admin/orders', { headers: { 'x-admin-token': token.value } }).then(r => r.json());
+      orders.value = r.data || [];
+    }
+
+    async function loadDishes() {
+      const r = await fetch('/api/dishes').then(r => r.json());
+      dishes.value = r.data || [];
+    }
+
+    async function loadSettings() {
+      const r = await fetch('/api/settings').then(r => r.json());
+      Object.assign(settingsForm, r.data);
+    }
+
+    async function loadStats() {
+      const r = await fetch('/api/admin/stats', { headers: { 'x-admin-token': token.value } }).then(r => r.json());
+      if (r.code === 0) stats.value = r.data;
+    }
+
+    async function saveSettings() {
+      const r = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token.value },
+        body: JSON.stringify(settingsForm)
+      }).then(r => r.json());
+      if (r.code === 0) {
+        settingsMsg.value = '保存成功 ✓';
+        setTimeout(() => settingsMsg.value = '', 2000);
+      } else {
+        alert(r.msg);
+      }
+    }
+
+    async function testNotify() {
+      notifyMsg.value = '发送中...';
+      const r = await fetch('/api/admin/settings/test-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token.value }
+      }).then(r => r.json());
+      notifyMsg.value = r.msg;
+      setTimeout(() => notifyMsg.value = '', 3000);
+    }
+
+    function openEditor(d) {
+      if (d) {
+        editor.value = { ...d };
+      } else {
+        editor.value = { name: '', category: '家常菜', price: 0, desc: '', image: '🍽️', available: true, recommend: false };
+      }
+    }
+
+    async function saveDish() {
+      const e = editor.value;
+      if (!e.name) return alert('菜名必填');
+      if (e.id) {
+        await fetch('/api/admin/dishes/' + e.id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-admin-token': token.value },
+          body: JSON.stringify(e)
+        });
+      } else {
+        await fetch('/api/admin/dishes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-token': token.value },
+          body: JSON.stringify(e)
+        });
+      }
+      editor.value = null;
+      loadDishes();
+    }
+
+    async function uploadImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await fetch('/api/admin/upload', {
+        method: 'POST',
+        headers: { 'x-admin-token': token.value },
+        body: fd
+      }).then(r => r.json());
+      if (r.code === 0) {
+        editor.value.image = r.data.image;
+        e.target.value = '';
+      } else {
+        alert(r.msg);
+      }
+    }
+
+    async function toggleAvailable(d) {
+      await fetch('/api/admin/dishes/' + d.id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token.value },
+        body: JSON.stringify({ available: !d.available })
+      });
+      loadDishes();
+    }
+
+    async function del(d) {
+      if (!confirm('确定删除「' + d.name + '」?')) return;
+      await fetch('/api/admin/dishes/' + d.id, {
+        method: 'DELETE',
+        headers: { 'x-admin-token': token.value }
+      });
+      loadDishes();
+    }
+
+    async function updateStatus(id, status) {
+      await fetch('/api/admin/orders/' + id + '/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token.value },
+        body: JSON.stringify({ status })
+      });
+      loadOrders();
+    }
+
+    async function deleteOrder(id) {
+      if (!confirm('确定删除该订单?')) return;
+      await fetch('/api/admin/orders/' + id, {
+        method: 'DELETE',
+        headers: { 'x-admin-token': token.value }
+      });
+      loadOrders();
+    }
+
+    function isPhoto(img) {
+      return img && (img.startsWith('/uploads/') || img.startsWith('http'));
+    }
+
+    function statusText(s) {
+      return { pending: '已下单', cooking: '制作中', done: '已完成', cancelled: '已取消' }[s] || s;
+    }
+    function statusClass(s) {
+      return {
+        pending: 'bg-blue-100 text-blue-600',
+        cooking: 'bg-orange-100 text-orange-600',
+        done: 'bg-green-100 text-green-600',
+        cancelled: 'bg-gray-100 text-gray-500'
+      }[s];
+    }
+    function formatTime(t) {
+      const d = new Date(t);
+      return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+
+    onMounted(() => {
+      if (token.value) loadData();
+    });
+
+    return {
+      token, loginPwd, loginError, login, logout,
+      tab, switchTab, orders, dishes, editor,
+      settingsForm, settingsMsg, notifyMsg, saveSettings, testNotify,
+      stats, maxQty, loadOrders, loadStats,
+      openEditor, saveDish, uploadImage, toggleAvailable, del,
+      updateStatus, deleteOrder, isPhoto,
+      statusText, statusClass, formatTime
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

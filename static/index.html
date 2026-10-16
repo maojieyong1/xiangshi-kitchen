@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>相诗的小厨房 💗</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .pink-gradient { background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%); }
+    .cart-bounce { animation: bounce 0.4s; }
+    @keyframes bounce {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+    }
+    .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+    .fade-enter-from, .fade-leave-to { opacity: 0; }
+    .slide-up-enter-active, .slide-up-leave-active { transition: transform 0.3s ease; }
+    .slide-up-enter-from, .slide-up-leave-to { transform: translateY(100%); }
+    ::-webkit-scrollbar { width: 0; height: 0; }
+    .heart { color: #ec4899; }
+  </style>
+</head>
+<body class="bg-pink-50 min-h-screen">
+<div id="app">
+  <!-- 顶部 -->
+  <header class="pink-gradient text-white px-4 py-6 sticky top-0 z-10 shadow-lg">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold flex items-center gap-2">
+          <span class="text-2xl">{{ settings.banner }}</span>
+          {{ settings.shopName }}
+        </h1>
+        <p class="text-sm opacity-90 mt-1">相诗专属 · {{ settings.shopSubtitle }}</p>
+      </div>
+      <button @click="view = 'orders'" class="bg-white/20 px-3 py-2 rounded-full text-sm">
+        📋 相诗的订单
+      </button>
+    </div>
+    <div v-if="settings.notice" class="mt-3 bg-white/15 px-3 py-2 rounded-lg text-sm">
+      💌 {{ settings.notice }}
+    </div>
+  </header>
+
+  <!-- 首页视图 -->
+  <main v-if="view === 'home'" class="pb-24">
+    <!-- 推荐 -->
+    <section class="px-4 py-4">
+      <h2 class="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+        <span class="heart">♥</span> 今日推荐
+      </h2>
+      <div class="grid grid-cols-2 gap-3">
+        <div v-for="d in recommend" :key="d.id"
+             @click="addToCart(d)"
+             class="bg-white rounded-2xl p-3 shadow-sm hover:shadow-md transition cursor-pointer relative">
+          <div class="text-center py-2">
+            <img v-if="isPhoto(d.image)" :src="d.image" class="w-20 h-20 rounded-2xl object-cover mx-auto">
+            <div v-else class="text-5xl">{{ d.image }}</div>
+          </div>
+          <h3 class="font-bold text-gray-800 mt-2 truncate">{{ d.name }}</h3>
+          <p class="text-xs text-gray-500 line-clamp-1 mt-1">{{ d.desc }}</p>
+          <div class="flex items-center justify-between mt-2">
+            <span class="text-pink-500 font-bold">¥{{ d.price }}</span>
+            <button class="bg-pink-500 text-white w-7 h-7 rounded-full text-lg flex items-center justify-center active:scale-90">+</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 全部菜单 -->
+    <section class="px-4 py-2">
+      <h2 class="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+        🍴 全部菜单
+      </h2>
+      <!-- 分类 -->
+      <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
+        <button v-for="c in categories" :key="c" @click="activeCat = c"
+          :class="activeCat === c ? 'bg-pink-500 text-white' : 'bg-white text-gray-600'"
+          class="px-4 py-1.5 rounded-full text-sm whitespace-nowrap shadow-sm">
+          {{ c }}
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 gap-2 mt-3">
+        <div v-for="d in filteredDishes" :key="d.id"
+             class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3">
+          <div>
+            <img v-if="isPhoto(d.image)" :src="d.image" class="w-14 h-14 rounded-xl object-cover">
+            <div v-else class="text-4xl">{{ d.image }}</div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h3 class="font-bold text-gray-800 truncate">{{ d.name }}</h3>
+            <p class="text-xs text-gray-500 truncate">{{ d.desc }}</p>
+            <span class="text-pink-500 font-bold">¥{{ d.price }}</span>
+          </div>
+          <div class="flex items-center gap-2" v-if="cart[d.id]">
+            <button @click="changeQty(d, -1)" class="bg-gray-100 w-7 h-7 rounded-full text-lg flex items-center justify-center">−</button>
+            <span class="w-5 text-center font-bold">{{ cart[d.id] }}</span>
+            <button @click="changeQty(d, 1)" class="bg-pink-500 text-white w-7 h-7 rounded-full text-lg flex items-center justify-center active:scale-90">+</button>
+          </div>
+          <button v-else @click="addToCart(d)"
+                  class="bg-pink-500 text-white px-4 py-1.5 rounded-full text-sm active:scale-90">
+            加入购物车
+          </button>
+        </div>
+        <div v-if="filteredDishes.length === 0" class="text-center text-gray-400 py-8">
+          这个分类还没有菜品哦~
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 订单列表视图 -->
+  <main v-if="view === 'orders'" class="pb-24 px-4 py-4">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold">📋 我的订单</h2>
+      <button @click="view = 'home'" class="text-pink-500 text-sm">← 继续点餐</button>
+    </div>
+    <div v-if="orders.length === 0" class="text-center text-gray-400 py-16">
+      <div class="text-6xl mb-3">🍽️</div>
+      <p>还没有点过菜呢~</p>
+    </div>
+    <div v-for="o in orders" :key="o.id" class="bg-white rounded-2xl p-4 mb-3 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm text-gray-500">单号: {{ o.id }}</span>
+        <span :class="statusClass(o.status)" class="text-xs px-2 py-0.5 rounded-full">{{ statusText(o.status) }}</span>
+      </div>
+      <div class="text-sm text-gray-700">
+        <div v-for="it in o.items" :key="it.id" class="flex justify-between py-0.5">
+          <span class="inline-flex items-center gap-1">
+            <img v-if="isPhoto(it.image)" :src="it.image" class="w-4 h-4 rounded object-cover">
+            <span v-else>{{ it.image }}</span>
+            {{ it.name }} × {{ it.qty }}
+          </span>
+          <span class="text-gray-500">¥{{ it.price * it.qty }}</span>
+        </div>
+      </div>
+      <div class="border-t mt-2 pt-2 flex justify-between items-center">
+        <span class="text-xs text-gray-400">{{ formatTime(o.createdAt) }}</span>
+        <span class="font-bold text-pink-500">合计 ¥{{ o.total }}</span>
+      </div>
+      <div v-if="o.remark" class="mt-2 text-xs text-orange-500 bg-orange-50 p-2 rounded">
+        📝 {{ o.remark }}
+      </div>
+    </div>
+  </main>
+
+  <!-- 下单页 -->
+  <transition name="slide-up">
+    <div v-if="view === 'checkout'" class="fixed inset-0 bg-black/50 z-20 flex items-end" @click.self="view = 'home'">
+      <div class="bg-white w-full rounded-t-3xl max-h-[85vh] overflow-y-auto p-4">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold">💗 相诗的订单</h2>
+          <button @click="view = 'home'" class="text-gray-400 text-2xl">×</button>
+        </div>
+
+        <div class="bg-pink-50 rounded-xl p-3 mb-4">
+          <div v-for="(it, id) in cartList" :key="id" class="flex justify-between py-1 text-sm">
+            <span class="inline-flex items-center gap-1">
+              <img v-if="isPhoto(it.image)" :src="it.image" class="w-4 h-4 rounded object-cover">
+              <span v-else>{{ it.image }}</span>
+              {{ it.name }} × {{ it.qty }}
+            </span>
+            <span class="text-gray-600">¥{{ it.price * it.qty }}</span>
+          </div>
+          <div class="border-t border-pink-200 mt-2 pt-2 flex justify-between font-bold text-pink-600">
+            <span>合计</span>
+            <span>¥{{ cartTotal }}</span>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="text-sm text-gray-600">用餐人</label>
+            <input v-model="form.customerName" type="text" placeholder="相诗"
+                   class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg focus:border-pink-400 outline-none">
+          </div>
+          <div>
+            <label class="text-sm text-gray-600">桌号/位置</label>
+            <input v-model="form.tableNo" type="text" placeholder="家里 / 沙发 / 餐桌"
+                   class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg focus:border-pink-400 outline-none">
+          </div>
+          <div>
+            <label class="text-sm text-gray-600">备注(想吃辣/少油/加蛋等)</label>
+            <textarea v-model="form.remark" rows="2" placeholder="想跟他说的话也可以写这里~ 比如少辣、多加蛋"
+                      class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg focus:border-pink-400 outline-none resize-none"></textarea>
+          </div>
+          <button @click="submitOrder"
+                  class="w-full pink-gradient text-white py-3 rounded-full font-bold text-lg active:scale-95 transition">
+            💕 下单啦 (¥{{ cartTotal }})
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
+
+  <!-- 成功提示 -->
+  <transition name="fade">
+    <div v-if="showSuccess" class="fixed inset-0 bg-black/60 z-30 flex items-center justify-center px-8" @click="showSuccess = false">
+      <div class="bg-white rounded-3xl p-8 text-center max-w-sm">
+        <div class="text-7xl mb-3">💖</div>
+        <h3 class="text-2xl font-bold text-pink-500 mb-2">相诗下单成功!</h3>
+        <p class="text-gray-600 mb-4">稍等一下,马上给你做好啦~</p>
+        <p v-if="lastOrderId" class="text-xs text-gray-400 mb-4">单号: {{ lastOrderId }}</p>
+        <button @click="showSuccess = false; view = 'orders'"
+                class="bg-pink-500 text-white px-6 py-2 rounded-full">
+          查看订单
+        </button>
+      </div>
+    </div>
+  </transition>
+
+  <!-- 底部购物车栏 -->
+  <nav v-if="view === 'home' && cartCount > 0" class="fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t border-pink-100 px-4 py-3 z-10">
+    <div class="flex items-center justify-between max-w-md mx-auto">
+      <div class="flex items-center gap-2">
+        <div class="relative">
+          <span class="text-3xl">🛒</span>
+          <span class="absolute -top-1 -right-1 bg-pink-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">{{ cartCount }}</span>
+        </div>
+        <span class="font-bold text-pink-500 text-lg">¥{{ cartTotal }}</span>
+      </div>
+      <button @click="view = 'checkout'"
+              class="pink-gradient text-white px-6 py-2.5 rounded-full font-bold active:scale-95 transition">
+        去结算
+      </button>
+    </div>
+  </nav>
+</div>
+
+<script>
+const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+createApp({
+  setup() {
+    const settings = ref({ shopName: '', shopSubtitle: '', banner: '💗', notice: '' });
+    const dishes = ref([]);
+    const categories = ref(['全部']);
+    const activeCat = ref('全部');
+    const cart = reactive({});
+    const view = ref('home');
+    const orders = ref([]);
+    const showSuccess = ref(false);
+    const lastOrderId = ref('');
+    const form = reactive({ customerName: '', tableNo: '', remark: '' });
+
+    const recommend = computed(() => dishes.value.filter(d => d.recommend && d.available));
+    const filteredDishes = computed(() => {
+      if (activeCat.value === '全部') return dishes.value.filter(d => d.available);
+      return dishes.value.filter(d => d.available && d.category === activeCat.value);
+    });
+    const cartList = computed(() => {
+      return Object.keys(cart).map(id => {
+        const d = dishes.value.find(x => x.id === id);
+        return { ...d, qty: cart[id] };
+      }).filter(x => x && x.id);
+    });
+    const cartCount = computed(() => Object.values(cart).reduce((s, n) => s + n, 0));
+    const cartTotal = computed(() => cartList.value.reduce((s, it) => s + it.price * it.qty, 0));
+
+    async function load() {
+      const [s, d, c] = await Promise.all([
+        fetch('/api/settings').then(r => r.json()),
+        fetch('/api/dishes').then(r => r.json()),
+        fetch('/api/dishes/categories').then(r => r.json())
+      ]);
+      settings.value = s.data;
+      dishes.value = d.data;
+      categories.value = c.data;
+    }
+
+    function addToCart(d) {
+      cart[d.id] = (cart[d.id] || 0) + 1;
+    }
+    function changeQty(d, delta) {
+      cart[d.id] = (cart[d.id] || 0) + delta;
+      if (cart[d.id] <= 0) delete cart[d.id];
+    }
+
+    async function loadOrders() {
+      const r = await fetch('/api/orders?recent=1').then(r => r.json());
+      orders.value = r.data || [];
+    }
+
+    async function submitOrder() {
+      const items = cartList.value.map(it => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, image: it.image }));
+      const r = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: form.customerName || '宝贝',
+          tableNo: form.tableNo || '家里',
+          items,
+          remark: form.remark,
+          total: cartTotal.value
+        })
+      }).then(r => r.json());
+      if (r.code === 0) {
+        Object.keys(cart).forEach(k => delete cart[k]);
+        form.remark = '';
+        lastOrderId.value = r.data.id;
+        showSuccess.value = true;
+        view.value = 'home';
+        loadOrders();
+      } else {
+        alert(r.msg);
+      }
+    }
+
+    function isPhoto(img) {
+      return img && (img.startsWith('/uploads/') || img.startsWith('http'));
+    }
+
+    function statusText(s) {
+      return { pending: '已下单', cooking: '制作中', done: '已完成', cancelled: '已取消' }[s] || s;
+    }
+    function statusClass(s) {
+      return {
+        pending: 'bg-blue-100 text-blue-600',
+        cooking: 'bg-orange-100 text-orange-600',
+        done: 'bg-green-100 text-green-600',
+        cancelled: 'bg-gray-100 text-gray-500'
+      }[s];
+    }
+    function formatTime(t) {
+      const d = new Date(t);
+      return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+
+    onMounted(() => {
+      load();
+      loadOrders();
+    });
+
+    return {
+      settings, dishes, categories, activeCat, cart, view, orders,
+      showSuccess, lastOrderId, form,
+      recommend, filteredDishes, cartList, cartCount, cartTotal,
+      addToCart, changeQty, submitOrder, loadOrders, isPhoto,
+      statusText, statusClass, formatTime
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

@@ -5,13 +5,18 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node server/index.js"
+    "dev": "node server/index.js",
+    "deploy": "wrangler deploy",
+    "kv:create": "wrangler kv namespace create DATA"
   },
   "dependencies": {
     "express": "^4.19.2",
     "localtunnel": "^2.0.2",
     "multer": "^2.4.0",
     "nanoid": "^3.3.7"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
   },
   "engines": {
     "node": ">=14"

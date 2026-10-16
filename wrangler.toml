@@ -1,0 +1,11 @@
+name = "xiangshi-kitchen"
+compatibility_date = "2024-12-01"
+
+# 静态文件目录 (HTML 页面)
+[assets]
+directory = "./static"
+
+# KV 数据存储 (需在 Cloudflare 控制台创建后填入 id)
+[[kv_namespaces]]
+binding = "DATA"
+id = "YOUR_KV_ID"
