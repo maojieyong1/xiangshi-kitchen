@@ -19,7 +19,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/admin', express.static(path.join(__dirname, '..', 'admin')));
 
 // 上传目录
-const UPLOAD_DIR = path.join(__dirname, '..', 'public', 'uploads');
+const UPLOAD_DIR = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // multer 配置:菜品图片上传
@@ -317,17 +317,23 @@ function sendNotify(webhook, title, content) {
 // ============ 启动服务 ============
 db.ensureData();
 
-app.listen(PORT, '0.0.0.0', () => {
-  const settings = db.getSettings();
-  console.log('');
-  console.log('  💗 ' + settings.shopName + ' 已开张!');
-  console.log('  📝 ' + settings.shopSubtitle);
-  console.log('');
-  console.log('  📱 点餐端:    http://localhost:' + PORT);
-  console.log('  🔧 管理后台:  http://localhost:' + PORT + '/admin');
-  console.log('  🔑 默认管理密码: ' + settings.adminPassword);
-  console.log('');
-  console.log('  💡 提示: 手机扫码访问 http://你电脑IP:' + PORT);
-  console.log('     电脑 IP 查询: ipconfig (Windows) / ifconfig (Mac/Linux)');
-  console.log('');
-});
+// 导出 app 供 Vercel serverless 使用
+module.exports = app;
+
+// 本地开发时启动服务
+if (!process.env.VERCEL) {
+  app.listen(PORT, '0.0.0.0', () => {
+    const settings = db.getSettings();
+    console.log('');
+    console.log('  💗 ' + settings.shopName + ' 已开张!');
+    console.log('  📝 ' + settings.shopSubtitle);
+    console.log('');
+    console.log('  📱 点餐端:    http://localhost:' + PORT);
+    console.log('  🔧 管理后台:  http://localhost:' + PORT + '/admin');
+    console.log('  🔑 默认管理密码: ' + settings.adminPassword);
+    console.log('');
+    console.log('  💡 提示: 手机扫码访问 http://你电脑IP:' + PORT);
+    console.log('     电脑 IP 查询: ipconfig (Windows) / ifconfig (Mac/Linux)');
+    console.log('');
+  });
+}
