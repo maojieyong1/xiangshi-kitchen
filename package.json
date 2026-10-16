@@ -1,0 +1,19 @@
+{
+  "name": "couple-restaurant",
+  "version": "1.0.0",
+  "description": "给情侣用的小巧点餐系统 - 扫码即用、零配置",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "localtunnel": "^2.0.2",
+    "multer": "^2.4.0",
+    "nanoid": "^3.3.7"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}
